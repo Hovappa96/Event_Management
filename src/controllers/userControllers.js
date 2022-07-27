@@ -20,6 +20,7 @@ const isValidTitle = (title) => {
 
 
 
+//1.User Creation
 const createUser = async function (req, res) {
     try {
         let data = req.body
@@ -82,7 +83,7 @@ const createUser = async function (req, res) {
         const salt = await bcrypt.genSalt(10)
         encrypted = await bcrypt.hash(password, salt)
 
-        let details = { title, fullName, email, mobile, password: encrypted }
+        let details = { title, fullName, email, mobile, password: encrypted, createdAt: new Date() }
 
         let saveData = await userModel.create(details)
         return res.status(201).send({ status: true, data: saveData })
@@ -94,6 +95,8 @@ const createUser = async function (req, res) {
 
 
 
+
+//2.User login
 const logIn = async function (req, res) {
     try {
         let data = req.body;
@@ -129,15 +132,14 @@ const logIn = async function (req, res) {
         else {
             return res.status(404).send({ status: false, message: "User Not Found" })
         }
- 
-        //generating jwt
-        let generateToken = jwt.sign({
-            userId: findUser._id.toString()
-        }, "MySecreateCode", { expiresIn: "30m" })
 
-        // let storeToken =await userModel
+        //generating token
+        let token = jwt.sign({ userId: findUser._id }, process.env.SECRETE_KEY, { expiresIn: "1h" })
+        findUser.token = token
+        await findUser.save();
 
-        return res.status(200).send({ status: true, message: "Suceess", data: generateToken })
+        res.cookie("jwt", token, { maxAge: 1000 * 60 * 60 * 24, httpOnly: true });
+        return res.status(200).send({ status: true, message: "login Successful" })
 
     }
     catch (err) {
@@ -146,5 +148,107 @@ const logIn = async function (req, res) {
 }
 
 
-module.exports = { createUser ,logIn}
+
+//3.User Logout
+const logout = async function (req, res) {
+    try {
+        const cookies = req.cookies.jwt;
+
+        let findToken = await userModel.findOne({ token: cookies })
+        if (!findToken) {
+            return res.status(404).send({ status: false, message: "token not found" })
+        } else {
+            res.clearCookie("jwt")
+            findToken.token = null
+            await findToken.save();
+        }
+        return res.status(200).send({ status: true, message: "logged out Successfully" })
+    }
+    catch (err) {
+        return res.status(500).send({ status: false, Error: err.message })
+    }
+}
+
+
+
+//4.change password
+const changePassword = async function (req, res) {
+    try {
+        let password = req.body.password;
+        let idOfToken = req.userId
+
+        if (!isValidRequestBody(password)) {
+            return res.status(400).send({ status: false, message: "please pass password in request body" })
+        }
+
+        if (!validator.isStrongPassword(password)) {
+            return res.status(400).send({ status: false, message: "invalid password" })
+        }
+        // password hashing
+        let salt = await bcrypt.genSalt(10)
+        encrypted = await bcrypt.hash(password, salt)
+
+        let checkId = await userModel.findOneAndUpdate({ _id: idOfToken }, { password: encrypted }, { new: true })
+        return res.status(200).send({ status: true, message: "Password Changed Successfully" })
+    }
+    catch (err) {
+        return res.status(500).send({ status: false, Error: err.message })
+    }
+}
+
+
+
+//5.Reset Password
+const resetPassword = async function (req, res) {
+    try {
+        let data = req.body;
+        let { email, password } = data
+
+        let checkEmail = await userModel.findOne({ email })
+        if (!checkEmail) {
+            return res.status(404).send({ status: false, message: "User Not Found" })
+        }
+
+        // password hashing
+        let salt = await bcrypt.genSalt(10);
+        encrypted = await bcrypt.hash(password, salt);
+        checkEmail.password = encrypted;
+        await checkEmail.save();
+
+        return res.status(200).send({ status: true, message: "Password Reset Done..!" })
+    }
+    catch (err) {
+        return res.status(500).send({ status: false, Error: err.message })
+    }
+}
+
+
+
+
+//6.Update Password
+const updatePassword = async function (req, res) {
+    try {
+        let password = req.body.password;
+        let idOfToken = req.userId
+
+        if (!isValidRequestBody(password)) {
+            return res.status(400).send({ status: false, message: "please pass password in request body" })
+        }
+
+        if (!validator.isStrongPassword(password)) {
+            return res.status(400).send({ status: false, message: "invalid password" })
+        }
+        // password hashing
+        let salt = await bcrypt.genSalt(10)
+        encrypted = await bcrypt.hash(password, salt)
+
+        let checkId = await userModel.findOneAndUpdate({ _id: idOfToken }, { password: encrypted }, { new: true })
+        return res.status(200).send({ status: true, message: "Password Changed Successfully" })
+    }
+    catch (err) {
+        return res.status(500).send({ status: false, Error: err.message })
+    }
+}
+
+module.exports = { createUser, logIn, logout, changePassword, resetPassword, updatePassword }
 

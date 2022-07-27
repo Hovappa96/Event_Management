@@ -29,13 +29,16 @@ const userSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
+    token: {
+        type: String
+    },
     createdAt: {
         type: Date
     },
     modifiedAt: {
         type: Date
     }
-}, { timestamps: true })
+})
 
 
 module.exports = mongoose.model("user", userSchema)
